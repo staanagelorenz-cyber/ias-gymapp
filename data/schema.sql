@@ -34,8 +34,32 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     PRIMARY KEY (role_id, permission_id)
 );
 
+INSERT OR IGNORE INTO roles (name) VALUES
+    ('Administrator'), ('Front Desk'), ('Coach'), ('Member'), ('Auditor');
+
+INSERT OR IGNORE INTO permissions (name) VALUES
+    ('user:manage'), ('role:assign'),
+    ('member:create'), ('member:read'), ('member:update'), ('member:delete'),
+    ('member:read_sensitive'),
+    ('payment:create'), ('payment:read'), ('payment:approve_refund'),
+    ('plan:create'), ('plan:read'), ('plan:update'), ('plan:update_any'), ('plan:delete'),
+    ('audit:read');
+
+INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles AS r CROSS JOIN permissions AS p
+WHERE (r.name = 'Administrator' AND p.name IN
+       ('user:manage', 'role:assign', 'member:read', 'payment:approve_refund'))
+   OR (r.name = 'Front Desk' AND p.name IN
+       ('member:create', 'member:read', 'member:update', 'payment:create', 'payment:read'))
+   OR (r.name = 'Coach' AND p.name IN
+       ('member:read', 'member:read_sensitive', 'plan:create', 'plan:read', 'plan:update', 'plan:delete'))
+   OR (r.name = 'Member' AND p.name IN ('plan:read', 'payment:read'))
+   OR (r.name = 'Auditor' AND p.name IN
+       ('member:read', 'payment:read', 'plan:read', 'audit:read'));
+
 CREATE TABLE IF NOT EXISTS members (
     id               INTEGER PRIMARY KEY,
+    user_id          INTEGER UNIQUE REFERENCES users(id) ON DELETE SET NULL,
     full_name        TEXT NOT NULL,
     contact_number   TEXT,
     health_notes     TEXT,
@@ -73,7 +97,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action     TEXT NOT NULL,
     target     TEXT NOT NULL,
     outcome    TEXT NOT NULL CHECK (outcome IN ('OK', 'FAIL')),
-    details    TEXT
+    details    TEXT,
+    prev_hash  TEXT NOT NULL,
+    entry_hash TEXT NOT NULL UNIQUE
 );
 
 CREATE INDEX IF NOT EXISTS idx_payments_member_id ON payments(member_id);
